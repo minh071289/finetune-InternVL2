@@ -20,6 +20,7 @@ logger = get_logger()
 from wad_dataset import build_dataset  
 from transformers.models.qwen2.tokenization_qwen2 import Qwen2Tokenizer
 from model.modeling_internvl_chat import InternVLChatModel
+from transformers import AutoModel, AutoTokenizer
 from model.conversation import get_conv_template
 
 
@@ -188,16 +189,18 @@ if __name__ == "__main__":
 
         # 3. Load model (KHÔNG GỌI .cuda() ở đây vì bitsandbytes tự động đẩy lên GPU)
         logger.info(f"Loading model {model_name_or_path} in 4-bit...")
-        model = InternVLChatModel.from_pretrained(
+        model = AutoModel.from_pretrained(
             model_name_or_path, 
             torch_dtype=torch.bfloat16, 
             quantization_config=quantization_config,
             low_cpu_mem_usage=True,
             trust_remote_code=True
         )
-        tokenizer = Qwen2Tokenizer.from_pretrained(model_name_or_path, trust_remote_code=True, use_fast=False)
+        
+        # Dùng AutoTokenizer thay vì Qwen2Tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True, use_fast=False)
         model.img_context_token_id = tokenizer.convert_tokens_to_ids(IMG_CONTEXT_TOKEN)
-
+        
         # 4. Đóng băng Vision Model (Chỉ dạy ngôn ngữ)
         model.vision_model.requires_grad_(False)
         

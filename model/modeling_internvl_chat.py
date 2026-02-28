@@ -10,8 +10,7 @@ import torch.utils.checkpoint
 import transformers
 from torch import nn
 from torch.nn import CrossEntropyLoss
-from transformers import (GenerationConfig, LlamaForCausalLM,
-                          Qwen2ForCausalLM)
+from transformers import (GenerationConfig, LlamaForCausalLM, Qwen2ForCausalLM)
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.modeling_utils import PreTrainedModel
 

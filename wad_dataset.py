@@ -85,15 +85,35 @@ class WADDatasetForInternVL(Dataset):
             polm_text = "\n".join([f"- {polm.to_text()}" for polm in polm_list])
             
             # Bắt buộc nối thêm <image>\n vào đầu để CollaterFn của tác giả nhận diện
-            question = f"<image>\nYou are a navigation assistant for blind people.\nDetected objects:\n{polm_text}\nAnalyze: location, weather, traffic, scene → then give instruction."
-            if sample.get('QA') and sample['QA'].get('Q'):
-                question += f"\n\nQuestion: {sample['QA']['Q']}"
-                
-            # 4. Tạo Answer
-            ground_truth_dict = map_metadata_to_ground_truth(sample)
-            answer = ground_truth_dict.to_json()
+            text_content = f"""Detected objects:
+{polm_text}
 
-            # 5. TRẢ VỀ DICT THEO ĐÚNG FORMAT CỦA TÁC GIẢ ZHANGFAEN
+Analyze: location, weather, traffic, scene → then give instruction.
+
+Follow Chain-of-Thought reasoning:
+1. Perception: Extract "location", "weather", and "traffic".
+2. Comprehension: Synthesize details into the "scene".
+3. Decision: Formulate the final "instruction"."""
+
+            # Kiểm tra xem có câu hỏi phụ không
+            has_question = sample.get('QA') and sample['QA'].get('Q')
+            
+            if has_question:
+                text_content += f"\n\nQuestion: {sample['QA']['Q']}"
+                text_content += """\n\nFormat response:
+<answer>{"location": "...", "weather": "...", "traffic": "...", "scene": "<concise visual summary, max 2 sentences>", "instruction": "<your answer to the question>"}</answer>"""
+            else:
+                text_content += """\n\nFormat response:
+<answer>{"location": "...", "weather": "...", "traffic": "...", "scene": "<concise visual summary, max 2 sentences>", "instruction": "<actionable alert and guidance>"}</answer>"""
+
+            # Chốt lại: Gắn thẻ <image>\n lên đầu để mô hình biết vị trí nhét ảnh
+            question = f"<image>\n{text_content}"
+            
+            # 4. Tạo Answer (Ground Truth)
+            ground_truth_dict = map_metadata_to_ground_truth(sample)
+            answer = f"<answer>{ground_truth_dict.to_json()}</answer>"
+
+            # 5. Trả về đúng Dict cho train.py
             return {
                 'question': question, 
                 'answer': answer, 
