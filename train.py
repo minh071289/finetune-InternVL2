@@ -89,7 +89,7 @@ def test_model(model, val_loader_with_shuffle, shuffle=False):
         for batch in tqdm(val_loader_with_shuffle if shuffle else val_loader):
             _, _, _, _, samples = batch # Bỏ pixel_values_batch thừa
             for sample in samples:
-                pixel_values = sample['pixel_values'].cuda()
+                pixel_values = sample['pixel_values'].to(torch.bfloat16).cuda()
                 generation_config = dict(max_new_tokens=512, do_sample=False)
                 question = f"{sample['question']}"
                 response = model.chat(tokenizer, pixel_values, question, generation_config)
@@ -109,7 +109,7 @@ def eval_model(model, val_loader, step, epoch, epochs):
             input_ids_batch = input_ids_batch.cuda()
             label_ids_batch = label_ids_batch.cuda()
             attention_mask_batch = attention_mask_batch.cuda()
-            pixel_values_batch = pixel_values_batch.cuda()
+            pixel_values_batch = pixel_values_batch.to(torch.bfloat16).cuda()
             image_flags_batch = torch.ones(pixel_values_batch.shape[:2], dtype=torch.long).cuda()
             outputs = model(
                 input_ids=input_ids_batch, pixel_values=pixel_values_batch, labels=label_ids_batch, image_flags=image_flags_batch, return_dict=True
@@ -141,7 +141,7 @@ def train_model(model, train_loader, val_loader, val_loader_with_shuffle, epochs
             input_ids_batch = input_ids_batch.cuda()
             label_ids_batch = label_ids_batch.cuda()
             attention_mask_batch = attention_mask_batch.cuda()
-            pixel_values_batch = pixel_values_batch.cuda()
+            pixel_values_batch = pixel_values_batch.to(torch.bfloat16).cuda()
 
             image_flags_batch = torch.ones(pixel_values_batch.shape[:2], dtype=torch.long).cuda()
             outputs = model(
