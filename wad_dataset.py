@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 
 from preprocessing import POLMData, map_metadata_to_ground_truth
 # BẮT BUỘC: Import hàm xử lý ảnh từ file data.py của tác giả zhangfaen
-from data import process_image 
+from data import process_image
 
 class WADDatasetForInternVL(Dataset):
     def __init__(
@@ -60,7 +60,7 @@ class WADDatasetForInternVL(Dataset):
                     polm_list.append(polm)
         polm_list = [p for p in polm_list if p.confidence >= 0.6]
         polm_list.sort(key=lambda x: x.confidence, reverse=True)
-        return polm_list[:50]
+        return polm_list[:20]
 
     def _select_frames_safe(self, frame_path: str, num_frames: int = 1) -> List[int]:
         available_frames = sorted(self.frame_index[frame_path].keys())

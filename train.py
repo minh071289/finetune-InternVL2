@@ -199,6 +199,8 @@ if __name__ == "__main__":
             trust_remote_code=True
         )
         
+        model.config.use_cache = False  # Tắt cache (bắt buộc khi train)
+        model.gradient_checkpointing_enable()
         # Dùng AutoTokenizer thay vì Qwen2Tokenizer
         tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True, use_fast=False)
         model.img_context_token_id = tokenizer.convert_tokens_to_ids(IMG_CONTEXT_TOKEN)
