@@ -47,7 +47,7 @@ training:
   output_dir: "./outputs/internvl3_2b"
   num_epochs: 3
   batch_size: 1
-  gradient_accumulation_steps: 2
+  gradient_accumulation_steps: 4
   learning_rate: 2e-4
   warmup_steps: 100
   warmup_ratio: 0.03

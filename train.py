@@ -7,7 +7,7 @@ from torch.optim import AdamW
 from torch.nn.utils.rnn import pad_sequence
 from torch.profiler import profile, ProfilerActivity
 from tqdm import tqdm
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import BitsAndBytesConfig, AutoModel, AutoTokenizer, get_cosine_schedule_with_warmup
 from logutil import init_logger, get_logger
 
@@ -66,8 +66,8 @@ class CollaterFn:
                 image_tokens = IMG_START_TOKEN + IMG_CONTEXT_TOKEN * self.model.num_image_token * num_patches + IMG_END_TOKEN
                 query = query.replace('<image>', image_tokens, 1)
             
-            input_ids = self.tokenizer.encode(query)
-            answer_ids = self.tokenizer.encode(answer)
+            input_ids = self.tokenizer.encode(query, add_special_tokens=False)
+            answer_ids = self.tokenizer.encode(answer, add_special_tokens=False)
             
             label_ids = [-100] * len(input_ids) + answer_ids + [eos_token_id]
             input_ids = input_ids + answer_ids + [eos_token_id]
@@ -244,6 +244,7 @@ if __name__ == "__main__":
         
         # 5. Cấu hình LoRA
         logger.info("Applying LoRA...")
+        model.language_model = prepare_model_for_kbit_training(model.language_model)
         peft_config = LoraConfig(
             r=config['model']['lora']['r'],
             lora_alpha=config['model']['lora']['alpha'],
