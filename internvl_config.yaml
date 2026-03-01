@@ -6,7 +6,7 @@ experiment:
 
 model:
   architecture: "internvl"
-  name: "OpenGVLab/InternVL2-2B"
+  name: "OpenGVLab/InternVL2_5-2B"
   trust_remote_code: true
   multimodal_max_length: 8192
 
