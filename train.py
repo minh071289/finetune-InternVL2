@@ -264,92 +264,90 @@ if __name__ == "__main__":
 
     model_name_or_path = config['model']['name']
     batch_size = config['training']['batch_size']
-
-    with profile(activities=[ProfilerActivity.CUDA], profile_memory=True, record_shapes=True) as prof:
         
-        # 2. Cấu hình Quantization 4-bit
-        quantization_config = BitsAndBytesConfig(
-            load_in_4bit=config['model']['quantization']['enabled'],
-            bnb_4bit_compute_dtype=torch.bfloat16 if config['model']['quantization']['compute_dtype'] == "bfloat16" else torch.float16,
-            bnb_4bit_use_double_quant=config['model']['quantization']['double_quant'],
-            bnb_4bit_quant_type=config['model']['quantization']['type']
-        )
-        # 3. Load model
-        logger.info(f"Loading model {model_name_or_path} in 4-bit...")
-        model = AutoModel.from_pretrained(
-            model_name_or_path,
-            torch_dtype=torch.bfloat16,
-            quantization_config=quantization_config,
-            low_cpu_mem_usage=True,
-            trust_remote_code=config['model']['trust_remote_code']
-        )
+    # 2. Cấu hình Quantization 4-bit
+    quantization_config = BitsAndBytesConfig(
+        load_in_4bit=config['model']['quantization']['enabled'],
+        bnb_4bit_compute_dtype=torch.bfloat16 if config['model']['quantization']['compute_dtype'] == "bfloat16" else torch.float16,
+        bnb_4bit_use_double_quant=config['model']['quantization']['double_quant'],
+        bnb_4bit_quant_type=config['model']['quantization']['type']
+    )
+    # 3. Load model
+    logger.info(f"Loading model {model_name_or_path} in 4-bit...")
+    model = AutoModel.from_pretrained(
+        model_name_or_path,
+        torch_dtype=torch.bfloat16,
+        quantization_config=quantization_config,
+        low_cpu_mem_usage=True,
+        trust_remote_code=config['model']['trust_remote_code']
+    )
 
-        model.config.use_cache = False
-        if config['training']['gradient_checkpointing']:
-            model.gradient_checkpointing_enable()
-            
-        tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True, use_fast=False)
-        model.img_context_token_id = tokenizer.convert_tokens_to_ids(IMG_CONTEXT_TOKEN)
+    model.config.use_cache = False
+    if config['training']['gradient_checkpointing']:
+        model.gradient_checkpointing_enable()
         
-        # 4. Đóng băng Vision Model
-        if config['model']['vision']['freeze_encoder']:
-            model.vision_model.requires_grad_(False)
-        
-        # 5. Cấu hình LoRA
-        logger.info("Applying LoRA...")
-        model.language_model = prepare_model_for_kbit_training(model.language_model)
-        # hf_repo_id = "huyvanzzz/Internvl2.5-2b-lora-config"
-        peft_config = LoraConfig(
-            r=config['model']['lora']['r'],
-            lora_alpha=config['model']['lora']['alpha'],
-            target_modules=config['model']['lora']['target_modules'],
-            lora_dropout=config['model']['lora']['dropout'],
-            bias=config['model']['lora']['bias'],
-            task_type=config['model']['lora']['task_type']
-        )
-        
-        model.language_model = get_peft_model(model.language_model, peft_config)
-        model.language_model.print_trainable_parameters()
-        model.train()
-        
-        # model.language_model = PeftModel.from_pretrained(
-        #     model.language_model,
-        #     hf_repo_id,
-        #     is_trainable=True # BẮT BUỘC ĐỂ TRUE nếu bạn muốn train tiếp. Nếu chỉ chạy test thì để False.
-        # )
+    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True, use_fast=False)
+    model.img_context_token_id = tokenizer.convert_tokens_to_ids(IMG_CONTEXT_TOKEN)
+    
+    # 4. Đóng băng Vision Model
+    if config['model']['vision']['freeze_encoder']:
+        model.vision_model.requires_grad_(False)
+    
+    # 5. Cấu hình LoRA
+    logger.info("Applying LoRA...")
+    model.language_model = prepare_model_for_kbit_training(model.language_model)
+    # hf_repo_id = "huyvanzzz/Internvl2.5-2b-lora-config"
+    peft_config = LoraConfig(
+        r=config['model']['lora']['r'],
+        lora_alpha=config['model']['lora']['alpha'],
+        target_modules=config['model']['lora']['target_modules'],
+        lora_dropout=config['model']['lora']['dropout'],
+        bias=config['model']['lora']['bias'],
+        task_type=config['model']['lora']['task_type']
+    )
+    
+    model.language_model = get_peft_model(model.language_model, peft_config)
+    model.language_model.print_trainable_parameters()
+    model.train()
+    
+    # model.language_model = PeftModel.from_pretrained(
+    #     model.language_model,
+    #     hf_repo_id,
+    #     is_trainable=True # BẮT BUỘC ĐỂ TRUE nếu bạn muốn train tiếp. Nếu chỉ chạy test thì để False.
+    # )
 
-        # model.language_model.print_trainable_parameters()
-        # model.train()
+    # model.language_model.print_trainable_parameters()
+    # model.train()
 
-        # 6. Load Dataset
-        logger.info("Building dataset...")
-        train_dataset, val_dataset = build_dataset(config)
-        
-        collate_fn_wrapper = CollaterFn(tokenizer, model)
+    # 6. Load Dataset
+    logger.info("Building dataset...")
+    train_dataset, val_dataset = build_dataset(config)
+    
+    collate_fn_wrapper = CollaterFn(tokenizer, model)
 
-        train_loader = DataLoader(
-            train_dataset, batch_size=batch_size, collate_fn=collate_fn_wrapper, shuffle=True
-        )
+    train_loader = DataLoader(
+        train_dataset, batch_size=batch_size, collate_fn=collate_fn_wrapper, shuffle=True
+    )
 
-        val_loader = DataLoader(
-            val_dataset, batch_size=batch_size, collate_fn=collate_fn_wrapper, shuffle=False
-        )
+    val_loader = DataLoader(
+        val_dataset, batch_size=batch_size, collate_fn=collate_fn_wrapper, shuffle=False
+    )
 
-        val_loader_with_shuffle = DataLoader(
-            val_dataset, batch_size=1, collate_fn=collate_fn_wrapper, shuffle=True
-        )
+    val_loader_with_shuffle = DataLoader(
+        val_dataset, batch_size=1, collate_fn=collate_fn_wrapper, shuffle=True
+    )
 
-        # 7. Bắt đầu train
-        logger.info("STARTING TRAINING...")
-        train_model(
-            model=model,
-            tokenizer=tokenizer,
-            train_loader=train_loader,
-            val_loader=val_loader,
-            val_loader_with_shuffle=val_loader_with_shuffle,
-            config=config,
-            output_dir=output_dir,
-            # resume_dir=None,
-            # start_epoch=0,
-            # start_step=5,
-        )
+    # 7. Bắt đầu train
+    logger.info("STARTING TRAINING...")
+    train_model(
+        model=model,
+        tokenizer=tokenizer,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        val_loader_with_shuffle=val_loader_with_shuffle,
+        config=config,
+        output_dir=output_dir,
+        # resume_dir=None,
+        # start_epoch=0,
+        # start_step=5,
+    )
