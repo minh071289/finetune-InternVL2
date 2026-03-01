@@ -133,8 +133,10 @@ def eval_model(model, val_loader, step, epoch, epochs):
                 break
         logger.info(f"Validation loss after {step} batches training in epoch {epoch + 1}/{epochs}: {total_eval_loss / total_eval_batchs:.4f}")
 
-def train_model(model, tokenizer, train_loader, val_loader, val_loader_with_shuffle, config, output_dir):
-    # 1. Trích xuất tham số từ config
+import os
+import torch
+
+def train_model(model, tokenizer, train_loader, val_loader, val_loader_with_shuffle, config, output_dir, resume_dir=None, start_epoch=0, start_step=0):
     epochs = config['training']['num_epochs']
     lr = float(config['training']['learning_rate'])
     accum_steps = config['training']['gradient_accumulation_steps']
@@ -146,10 +148,8 @@ def train_model(model, tokenizer, train_loader, val_loader, val_loader_with_shuf
     logger.info(f"Trainable params for LoRA: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
     logger.info(f"Training config: LR={lr}, Accum_steps={accum_steps}, Weight_decay={weight_decay}")
 
-    # 2. Khởi tạo Optimizer có Weight Decay
     optimizer = AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     
-    # 3. Sử dụng Cosine Scheduler (Chuẩn mực cho LLM)
     total_training_steps = (len(train_loader) * epochs) // accum_steps
     lr_scheduler = get_cosine_schedule_with_warmup(
         optimizer=optimizer,
@@ -157,13 +157,48 @@ def train_model(model, tokenizer, train_loader, val_loader, val_loader_with_shuf
         num_training_steps=total_training_steps
     )
     
-    for epoch in range(epochs):
+    # ==========================================
+    # [MỚI] 1. LOAD OPTIMIZER & SCHEDULER TỪ CHECKPOINT
+    # ==========================================
+    if resume_dir and os.path.exists(resume_dir):
+        logger.info(f"Resuming training from {resume_dir} | Epoch: {start_epoch+1}, Step: {start_step}")
+        
+        opt_path = os.path.join(resume_dir, "optimizer.pt")
+        sch_path = os.path.join(resume_dir, "scheduler.pt")
+        
+        if os.path.exists(opt_path) and os.path.exists(sch_path):
+            optimizer.load_state_dict(torch.load(opt_path))
+            lr_scheduler.load_state_dict(torch.load(sch_path))
+            logger.info("Loaded Optimizer and Scheduler states successfully!")
+        else:
+            logger.warning("No Optimizer/Scheduler states found in checkpoint. Starting with fresh states.")
+
+    # ==========================================
+    # [MỚI] 2. BẮT ĐẦU TỪ START_EPOCH THAY VÌ 0
+    # ==========================================
+    for epoch in range(start_epoch, epochs):
         model.train()
         optimizer.zero_grad()
-        i = 0
-        accumulated_loss_for_log = 0.0 
         
-        for batch in tqdm(train_loader, desc=f"Training Epoch {epoch + 1}/{epochs}"):
+        accumulated_loss_for_log = 0.0 
+        set_seed(42 + epoch)  # Đảm bảo mỗi epoch có seed khác nhau nhưng vẫn reproducible
+        batch_iterator = iter(train_loader) # Biến loader thành băng chuyền
+        
+        # ==========================================
+        # [MỚI] 3. TUA NHANH BATCH (CHỈ TUA Ở EPOCH ĐẦU TIÊN KHI RESUME)
+        # ==========================================
+        if epoch == start_epoch and start_step > 0:
+            logger.info(f" Skipping {start_step} batches to resume state...")
+            for _ in range(start_step):
+                next(batch_iterator) # Bốc data vứt đi, không đưa vào train
+            i = start_step # Cập nhật lại biến đếm
+        else:
+            i = 0
+            
+        # ==========================================
+        # [MỚI] 4. DÙNG BATCH_ITERATOR ĐỂ CHẠY
+        # ==========================================
+        for batch in tqdm(batch_iterator, desc=f"Training Epoch {epoch + 1}/{epochs}", total=len(train_loader), initial=i):
             i += 1
             input_ids_batch, label_ids_batch, attention_mask_batch, pixel_values_batch, _ = batch
             
@@ -187,7 +222,6 @@ def train_model(model, tokenizer, train_loader, val_loader, val_loader_with_shuf
             accumulated_loss_for_log += outputs.loss.item()
             
             if i % accum_steps == 0:
-                # 4. Gradient Clipping (Tránh nổ Loss)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
                 
                 avg_loss = accumulated_loss_for_log / accum_steps
@@ -195,7 +229,7 @@ def train_model(model, tokenizer, train_loader, val_loader, val_loader_with_shuf
                 accumulated_loss_for_log = 0.0 
                 
                 optimizer.step()
-                lr_scheduler.step() # Chuyển scheduler vào tính theo từng step
+                lr_scheduler.step() 
                 optimizer.zero_grad()
             
             if i % config['training']['eval_steps'] == 0:
@@ -206,15 +240,24 @@ def train_model(model, tokenizer, train_loader, val_loader, val_loader_with_shuf
             if i % config['training']['save_steps'] == 0: 
                 step_save_dir = f"{output_dir}/epoch_{epoch+1}_step_{i}/"
                 os.makedirs(step_save_dir, exist_ok=True)
-                logger.info(f"Saving model and tokenizer at step {i} to {step_save_dir}")
+                logger.info(f"Saving model, tokenizer, opt, scheduler at step {i} to {step_save_dir}")
+                
                 model.language_model.save_pretrained(step_save_dir)
-                tokenizer.save_pretrained(step_save_dir) # Lưu cả tokenizer
+                tokenizer.save_pretrained(step_save_dir) 
+                # ==========================================
+                # [MỚI] 5. LƯU THÊM OPTIMIZER VÀ SCHEDULER
+                # ==========================================
+                torch.save(optimizer.state_dict(), os.path.join(step_save_dir, "optimizer.pt"))
+                torch.save(lr_scheduler.state_dict(), os.path.join(step_save_dir, "scheduler.pt"))
         
         epoch_save_dir = f"{output_dir}/epoch_{epoch+1}/"
         os.makedirs(epoch_save_dir, exist_ok=True)
         logger.info(f"Saving model and tokenizer for epoch {epoch+1} to {epoch_save_dir}")
         model.language_model.save_pretrained(epoch_save_dir)
         tokenizer.save_pretrained(epoch_save_dir)
+        # Lưu Optimizer cho cuối epoch
+        torch.save(optimizer.state_dict(), os.path.join(epoch_save_dir, "optimizer.pt"))
+        torch.save(lr_scheduler.state_dict(), os.path.join(epoch_save_dir, "scheduler.pt"))
 
 
 if __name__ == "__main__":
@@ -291,9 +334,12 @@ if __name__ == "__main__":
         train_model(
             model=model, 
             tokenizer=tokenizer,
-            train_loader=train_loader, 
-            val_loader=val_loader, 
+            train_loader=train_loader,
+            val_loader=val_loader,
             val_loader_with_shuffle=val_loader_with_shuffle, 
             config=config,
-            output_dir=output_dir
+            output_dir=output_dir,
+            # resume_dir="./outputs/epoch_2_step_500/", 
+            # start_epoch=1,
+            # start_step=500,
         )
