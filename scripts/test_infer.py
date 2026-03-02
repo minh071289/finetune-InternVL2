@@ -8,7 +8,7 @@ from collections import defaultdict
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from peft import PeftModel
-from transformers import AutoModel, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModel, AutoTokenizer, BitsAndBytesConfig, logger
 from datasets import load_dataset
 import sys
 sys.path.append('.')
@@ -71,21 +71,23 @@ def main():
 
     # 1. Load Base Model & Tokenizer
     model_name_or_path = config['model']['name']
-    print(f"Loading Base Model: {model_name_or_path}...")
-    
+    batch_size = config['training']['batch_size']
+        
+    # 2. Cấu hình Quantization 4-bit
     quantization_config = BitsAndBytesConfig(
         load_in_4bit=config['model']['quantization']['enabled'],
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_quant_type="nf4"
+        bnb_4bit_compute_dtype=torch.bfloat16 if config['model']['quantization']['compute_dtype'] == "bfloat16" else torch.float16,
+        bnb_4bit_use_double_quant=config['model']['quantization']['double_quant'],
+        bnb_4bit_quant_type=config['model']['quantization']['type']
     )
-
+    # 3. Load model
+    logger.info(f"Loading model {model_name_or_path} in 4-bit...")
     model = AutoModel.from_pretrained(
         model_name_or_path,
         torch_dtype=torch.bfloat16,
         quantization_config=quantization_config,
-        trust_remote_code=True,
-        device_map="auto"
+        low_cpu_mem_usage=True,
+        trust_remote_code=config['model']['trust_remote_code']
     )
     
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True, use_fast=False)
