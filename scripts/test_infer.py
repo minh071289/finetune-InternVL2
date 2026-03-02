@@ -125,17 +125,11 @@ def main():
         }
     )
 
-    image_size = tuple(config['model']['vision']['image_size']) if 'image_size' in config['model']['vision'] else (448, 448)
-
     test_dataset = WADDatasetForInternVL(
-        metadata_dataset=dataset_dict,
+        metadata_dataset=dataset_dict["test"],
         frame_index=frame_index,
         bbox_by_folder=bbox_by_folder,
-        processor=None, # Tùy vào WADDatasetForInternVL của bạn có yêu cầu processor không, InternVL thường build chung trong model
-        tokenizer=tokenizer,
         split='test',
-        num_frames=config['data'].get('num_frames', 1),
-        image_size=image_size
     )
     
     test_loader = DataLoader(
