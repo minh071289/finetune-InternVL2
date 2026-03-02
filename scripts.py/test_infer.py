@@ -149,7 +149,7 @@ def main():
     predictions, references, detailed_results = [], [], []
 
     print("\n" + "="*50)
-    print(f"🚀 BẮT ĐẦU CHẠY ĐÁNH GIÁ TRÊN TẬP: {args.split} (Tổng: {len(test_dataset)} samples)")
+    print(f" BẮT ĐẦU CHẠY ĐÁNH GIÁ TRÊN TẬP: {args.split} (Tổng: {len(test_dataset)} samples)")
     print("="*50)
 
     evaluator = VLMMetrics()
