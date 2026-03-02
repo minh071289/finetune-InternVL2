@@ -87,9 +87,10 @@ def main():
         quantization_config=quantization_config,
         low_cpu_mem_usage=False,
         trust_remote_code=True,
-        device_map="auto"
+        device_map=None
     )
     
+    model = model.cuda()
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True, use_fast=False)
     model.img_context_token_id = tokenizer.convert_tokens_to_ids(IMG_CONTEXT_TOKEN)
     model.eval()
