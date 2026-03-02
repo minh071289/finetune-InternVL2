@@ -14,7 +14,6 @@ import sys
 sys.path.append('.')
 # Import class Metrics từ file metrics.py
 from scripts.metrics import VLMMetrics
-from model.modeling_internvl_chat import InternVLChatModel  # ← THÊM DÒNG NÀY
 # Import các thành phần data từ project của bạn
 from wad_dataset import WADDatasetForInternVL
 
@@ -81,7 +80,7 @@ def main():
         bnb_4bit_quant_type="nf4"
     )
 
-    model = InternVLChatModel.from_pretrained(
+    model = AutoModel.from_pretrained(
         model_name_or_path,
         torch_dtype=torch.bfloat16,
         quantization_config=quantization_config,
