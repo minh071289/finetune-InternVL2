@@ -12,7 +12,7 @@ from transformers import AutoModel, AutoTokenizer, BitsAndBytesConfig
 from datasets import load_dataset
 
 # Import class Metrics từ file metrics.py
-from .metrics import VLMMetrics
+from scripts.metrics import VLMMetrics
 
 # Import các thành phần data từ project của bạn
 from wad_dataset import WADDatasetForInternVL
