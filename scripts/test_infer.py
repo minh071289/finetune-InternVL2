@@ -85,7 +85,7 @@ def main():
         model_name_or_path,
         torch_dtype=torch.bfloat16,
         quantization_config=quantization_config,
-        low_cpu_mem_usage=True,
+        low_cpu_mem_usage=False,
         trust_remote_code=True,
         device_map="auto"
     )
